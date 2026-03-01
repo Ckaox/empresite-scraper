@@ -88,27 +88,65 @@ router.addHandler('LISTING', async ({ request, page, addRequests }) => {
             const profileUrl = link.href || '';
             if (!name || !profileUrl) return;
 
-            // Walk up to find card container
+            // Walk up to find card container (stop when only 1 company link inside)
             let card = link.parentElement;
-            for (let i = 0; i < 6; i++) {
+            for (let i = 0; i < 8; i++) {
                 if (!card) break;
                 if (card.querySelectorAll('h3 a[href*=".html"]').length === 1) break;
                 card = card.parentElement;
             }
 
-            const description = card?.querySelector('p')?.textContent?.trim() || '';
+            // Description: first <p> whose text isn't "Coincidencia..." or "VER ..."
+            let description = '';
+            const allPs = Array.from(card?.querySelectorAll('p') || []);
+            for (const p of allPs) {
+                const t = (p.textContent || '').trim();
+                if (t.length > 3
+                    && !t.toLowerCase().includes('coincidencia')
+                    && !t.toLowerCase().includes('ver en mapa')
+                    && !t.toLowerCase().includes('ver ficha')) {
+                    description = t;
+                    break;
+                }
+            }
 
+            // Address: walk sibling nodes after the map-pin <img>
             let address = '';
-            const allText = card?.textContent || '';
-            const streetMatch = allText.match(
-                /(?:Calle|Avenida|Plaza|Paseo|Camino|Carretera|Poligon|Urbanizaci|Lugar|Ronda|Travesia|Barrio|Parque)[^\[]*?(\d{5}[^\[]*)/i
-            );
-            if (streetMatch) {
-                address = streetMatch[0]
-                    .replace(/Coincidencia encontrada.*/i, '')
-                    .replace(/VER EN MAPA.*/i, '')
-                    .replace(/VER FICHA.*/i, '')
-                    .trim();
+            const mapPin = card?.querySelector('img[src*="map-pin"]');
+            if (mapPin) {
+                let node = mapPin.nextSibling;
+                const parts = [];
+                while (node) {
+                    if (node.nodeType === 3) { // text node
+                        parts.push(node.textContent.trim());
+                    } else if (node.nodeType === 1) { // element node
+                        const tag = node.tagName?.toUpperCase();
+                        const txt = (node.textContent || '').trim();
+                        if (txt.toLowerCase().includes('coincidencia')
+                            || txt.toLowerCase().includes('ver en mapa')
+                            || txt.toLowerCase().includes('ver ficha')
+                            || tag === 'A') break;
+                        parts.push(txt);
+                    }
+                    node = node.nextSibling;
+                }
+                address = parts.join(' ').replace(/\s{2,}/g, ' ').trim();
+            }
+
+            // Fallback: regex on full card text if map-pin not found
+            if (!address) {
+                const allText = card?.textContent || '';
+                const m = allText.match(
+                    /(?:Calle|Avenida|Plaza|Paseo|Camino|Carretera|Pol[ií]gono?|Urbanizaci[oó]n|Lugar|Ronda|Traves[ií]a|Barrio|Parque)\s.{5,120}?(\d{5}[^C]*)/i
+                );
+                if (m) {
+                    address = m[0]
+                        .replace(/Coincidencia encontrada.*/i, '')
+                        .replace(/VER EN MAPA.*/i, '')
+                        .replace(/VER FICHA.*/i, '')
+                        .replace(/\s{2,}/g, ' ')
+                        .trim();
+                }
             }
 
             results.push({ name, profileUrl, description, address });
