@@ -1,5 +1,6 @@
 import { createPlaywrightRouter, Dataset, log } from 'crawlee';
 import { Actor } from 'apify';
+import { detectRecaptcha, handleRecaptchaIfPresent } from './captchaSolver.js';
 
 export const router = createPlaywrightRouter();
 
@@ -14,6 +15,57 @@ router.addHandler('LISTING', async ({ request, page, enqueueLinks }) => {
 
     // Wait for results to load
     await page.waitForSelector('h3 a', { timeout: 15000 }).catch(() => {});
+
+    // --- reCAPTCHA detection & solving ---
+    const kvs = await Actor.openKeyValueStore();
+    const cfg = await kvs.getValue('CONFIG');
+    const captchaApiKey = cfg?.captchaApiKey || '';
+    const captchaMaxRetries = cfg?.captchaMaxRetries ?? 2;
+
+    const captchaResult = await detectRecaptcha(page);
+    if (captchaResult.found) {
+        log.warning(`reCAPTCHA detected on ${provincia} page ${pageNum}!`);
+
+        const retryCount = request.userData.captchaRetries || 0;
+
+        if (captchaApiKey) {
+            // Try solving via 2Captcha
+            const { solved } = await handleRecaptchaIfPresent(page, captchaApiKey);
+            if (solved) {
+                log.info('reCAPTCHA solved, waiting for page reload...');
+                await page.waitForSelector('h3 a', { timeout: 20000 }).catch(() => {});
+
+                // Re-check — if still captcha, retry or skip
+                const recheck = await detectRecaptcha(page);
+                if (recheck.found) {
+                    if (retryCount < captchaMaxRetries) {
+                        log.warning(`Still blocked after solving, retrying (${retryCount + 1}/${captchaMaxRetries})`);
+                        throw new Error('CAPTCHA_STILL_PRESENT');
+                    }
+                    log.error(`Giving up on ${provincia} page ${pageNum} after ${captchaMaxRetries} CAPTCHA retries`);
+                    return;
+                }
+            } else {
+                // Solving failed — retry with different proxy
+                if (retryCount < captchaMaxRetries) {
+                    log.warning(`CAPTCHA solving failed, retrying (${retryCount + 1}/${captchaMaxRetries})`);
+                    request.userData.captchaRetries = retryCount + 1;
+                    throw new Error('CAPTCHA_SOLVE_FAILED');
+                }
+                log.error(`Giving up on ${provincia} page ${pageNum} — cannot solve CAPTCHA`);
+                return;
+            }
+        } else {
+            // No API key — retry with new proxy IP
+            if (retryCount < captchaMaxRetries) {
+                log.warning(`No CAPTCHA solver configured, retrying with new proxy (${retryCount + 1}/${captchaMaxRetries})`);
+                request.userData.captchaRetries = retryCount + 1;
+                throw new Error('CAPTCHA_NO_SOLVER');
+            }
+            log.error(`reCAPTCHA on ${provincia} page ${pageNum} — no solver & max retries reached, skipping`);
+            return;
+        }
+    }
 
     // Check if we got a valid results page (not 404 or empty)
     const hasResults = await page.locator('h3 a').count();

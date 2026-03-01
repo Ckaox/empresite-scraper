@@ -42,6 +42,21 @@
             "minimum": 0,
             "maximum": 30000
         },
+        "captchaApiKey": {
+            "title": "2Captcha API Key",
+            "type": "string",
+            "description": "API key for 2captcha.com CAPTCHA solving service. Required to bypass reCAPTCHA. Get one at https://2captcha.com",
+            "editor": "textfield",
+            "isSecret": true
+        },
+        "captchaMaxRetries": {
+            "title": "CAPTCHA max retries",
+            "type": "integer",
+            "description": "Max times to retry solving a CAPTCHA on the same page before skipping",
+            "default": 2,
+            "minimum": 0,
+            "maximum": 5
+        },
         "proxyConfig": {
             "title": "Proxy Configuration",
             "type": "object",

@@ -13,12 +13,20 @@ const {
     provincias = PROVINCIAS.map(p => p.code),
     maxConcurrency = 3,
     delayBetweenRequests = 2000,
+    captchaApiKey = '',
+    captchaMaxRetries = 2,
     proxyConfig = { useApifyProxy: true, apifyProxyGroups: ['RESIDENTIAL'] },
 } = input;
 
+if (captchaApiKey) {
+    log.info('2Captcha API key configured — reCAPTCHA solving enabled');
+} else {
+    log.warning('No 2Captcha API key — if reCAPTCHA appears, pages will be retried with new proxy but NOT solved');
+}
+
 // Store config in key-value store for routes to access
 const kvStore = await Actor.openKeyValueStore();
-await kvStore.setValue('CONFIG', { keyword, maxPagesPerProvince });
+await kvStore.setValue('CONFIG', { keyword, maxPagesPerProvince, captchaApiKey, captchaMaxRetries });
 
 // Setup proxy
 const proxyConfiguration = await Actor.createProxyConfiguration(proxyConfig);

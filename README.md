@@ -22,6 +22,8 @@ Empresite limita **cualquier búsqueda a 40 páginas** (1,200 resultados). Si bu
 | `provincias` | string[] | todas | Filtrar provincias específicas |
 | `maxConcurrency` | int | 3 | Browsers paralelos (2-5 recomendado) |
 | `delayBetweenRequests` | int | 2000 | Delay en ms entre requests |
+| `captchaApiKey` | string | - | API key de [2captcha.com](https://2captcha.com) para resolver reCAPTCHA |
+| `captchaMaxRetries` | int | 2 | Reintentos máximo cuando aparece CAPTCHA |
 | `proxyConfig` | object | Residential | Configuración de proxy |
 
 ### Ejemplo de input
@@ -32,6 +34,7 @@ Empresite limita **cualquier búsqueda a 40 páginas** (1,200 resultados). Si bu
     "maxPagesPerProvince": 40,
     "maxConcurrency": 3,
     "delayBetweenRequests": 2000,
+    "captchaApiKey": "TU_API_KEY_DE_2CAPTCHA",
     "proxyConfig": {
         "useApifyProxy": true,
         "apifyProxyGroups": ["RESIDENTIAL"]
@@ -89,13 +92,48 @@ apify push
 
 O conectar el repositorio de GitHub directamente desde la UI de Apify.
 
-## CAPTCHAs y anti-bot
+## reCAPTCHA y anti-bot
 
-- **Proxies residenciales recomendados**: empresite puede bloquear datacenter IPs
-- **Delay entre requests**: mínimo 2 segundos recomendado
-- **Concurrencia baja**: máximo 3-5 browsers paralelos
-- **Empresite NO usa CAPTCHA agresivo** tipo reCAPTCHA/hCaptcha, pero sí rate-limiting (HTTP 429)
-- Con proxies residenciales de Apify y delays apropiados, no deberías tener problemas
+Empresiste **sí usa reCAPTCHA** de Google. El scraper tiene un sistema completo para manejarlo:
+
+### Detección automática
+
+En cada página, el scraper verifica si hay reCAPTCHA buscando:
+- Widget `.g-recaptcha` con `data-sitekey`
+- iframes de `google.com/recaptcha`
+- Scripts de reCAPTCHA
+
+### Resolución con 2Captcha
+
+Si configurás `captchaApiKey` con tu API key de [2captcha.com](https://2captcha.com):
+
+1. Detecta el reCAPTCHA y extrae el `siteKey`
+2. Envía el challenge a 2Captcha (servicio de resolución humana, ~$3/1000 CAPTCHAs)
+3. Espera la solución (normalmente 15-45 segundos)
+4. Inyecta el token en la página y continúa
+
+### Sin 2Captcha
+
+Si no tenés API key, el scraper:
+1. Detecta el CAPTCHA
+2. Reintenta con **IP de proxy diferente** (a veces el CAPTCHA se dispara solo con ciertas IPs)
+3. Si después de `captchaMaxRetries` intentos sigue apareciendo, salta esa página
+
+### Recomendaciones para minimizar CAPTCHAs
+
+| Configuración | Valor recomendado | Por qué |
+|---|---|---|
+| Proxies | **RESIDENTIAL** | IPs residenciales disparan menos CAPTCHAs |
+| Concurrencia | **2-3** | Pocas conexiones simultáneas |
+| Delay | **3000-5000 ms** | Simula comportamiento humano |
+| 2Captcha | **Recomendado** | Para cuando inevitablemente aparezca |
+
+### Coste estimado de 2Captcha
+
+- reCAPTCHA v2: ~$2.99 por 1,000 resoluciones
+- Si scrapeas 52 provincias × 40 páginas = 2,080 páginas
+- En el peor caso (CAPTCHA en cada página): ~$6.22
+- Con proxies residenciales, normalmente aparece en <10% de páginas: ~$0.62
 
 ## Otras páginas de España compatibles con scraping por keyword
 
