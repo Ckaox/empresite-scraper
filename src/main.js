@@ -49,23 +49,27 @@ const crawler = new PlaywrightCrawler({
     },
 
     // Delay between requests to avoid rate limiting
-    async preNavigationHooks(crawlingContext) {
-        if (delayBetweenRequests > 0) {
-            await new Promise(r => setTimeout(r, delayBetweenRequests));
-        }
-    },
+    preNavigationHooks: [
+        async (crawlingContext) => {
+            if (delayBetweenRequests > 0) {
+                await new Promise(r => setTimeout(r, delayBetweenRequests));
+            }
+        },
+    ],
 
     // Handle cookies banner automatically
-    async postNavigationHooks(crawlingContext) {
-        const { page } = crawlingContext;
-        try {
-            // Try to dismiss cookie banner
-            const cookieBtn = page.locator('button:has-text("Agree"), button:has-text("Disagree and close"), #didomi-notice-agree-button');
-            await cookieBtn.first().click({ timeout: 3000 }).catch(() => {});
-        } catch {
-            // Cookie banner not present, continue
-        }
-    },
+    postNavigationHooks: [
+        async (crawlingContext) => {
+            const { page } = crawlingContext;
+            try {
+                // Try to dismiss cookie banner
+                const cookieBtn = page.locator('button:has-text("Agree"), button:has-text("Disagree and close"), #didomi-notice-agree-button');
+                await cookieBtn.first().click({ timeout: 3000 }).catch(() => {});
+            } catch {
+                // Cookie banner not present, continue
+            }
+        },
+    ],
 
     requestHandler: router,
 
