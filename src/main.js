@@ -2,6 +2,7 @@ import { Actor } from 'apify';
 import { PlaywrightCrawler, log } from 'crawlee';
 import { router } from './routes.js';
 import { PROVINCIAS } from './provincias.js';
+import { getLastPing } from './heartbeat.js';
 
 await Actor.init();
 
@@ -20,6 +21,7 @@ const {
     requireWeb = false,
     requirePhone = false,
     requireEmail = false,
+    maxIdleSecs = 600,
     proxyConfig = { useApifyProxy: true, apifyProxyGroups: ['RESIDENTIAL'] },
 } = input;
 
@@ -117,8 +119,26 @@ const startUrls = provincias.map(provinciaCode => ({
 }));
 
 log.info(`Starting scrape for "${keyword}" across ${startUrls.length} provinces`);
+log.info(`Idle watchdog: will exit gracefully if no activity for ${maxIdleSecs}s (set maxIdleSecs=0 to disable)`);
+
+// ── Watchdog: exit gracefully if stuck / no results for maxIdleSecs ──────────
+let watchdog = null;
+if (maxIdleSecs > 0) {
+    watchdog = setInterval(async () => {
+        const idleMs = Date.now() - getLastPing();
+        if (idleMs > maxIdleSecs * 1000) {
+            const idleSecs = Math.round(idleMs / 1000);
+            log.warning(`No scraper activity for ${idleSecs}s (maxIdleSecs=${maxIdleSecs}) — finishing gracefully`);
+            clearInterval(watchdog);
+            // Exit with success — data already saved to dataset
+            await Actor.exit({ exitCode: 0 });
+        }
+    }, 30_000); // check every 30 seconds
+}
 
 await crawler.run(startUrls);
+
+if (watchdog) clearInterval(watchdog);
 
 // Log summary
 const dataset = await Actor.openDataset();

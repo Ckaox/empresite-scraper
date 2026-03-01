@@ -1,6 +1,7 @@
 ﻿import { createPlaywrightRouter, Dataset, log } from 'crawlee';
 import { Actor } from 'apify';
 import { detectRecaptcha, handleRecaptchaIfPresent } from './captchaSolver.js';
+import { ping } from './heartbeat.js';
 
 export const router = createPlaywrightRouter();
 
@@ -162,6 +163,9 @@ router.addHandler('LISTING', async ({ request, page, addRequests }) => {
         log.info(`Saved ${companies.length} companies from ${locationLabel} page ${pageNum} (${totalResults} total)`);
     }
 
+    // Signal that we did useful work — resets the idle watchdog
+    ping();
+
     // ── City fallback for provinces with >1200 results ─────────────────────────
     const { enableCityFallback = false } = config;
     if (enableCityFallback && !cityMode && pageNum === 1 && totalResults > 1200) {
@@ -279,4 +283,7 @@ router.addHandler('DETAIL', async ({ request, page }) => {
         email: contacts.email,
         scrapedAt: new Date().toISOString(),
     });
+
+    // Signal activity for the watchdog
+    ping();
 });

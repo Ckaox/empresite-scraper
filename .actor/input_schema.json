@@ -87,6 +87,14 @@
             "description": "Filter: only save companies where an email was found. Requires scrapeDetails=true.",
             "default": false
         },
+        "maxIdleSecs": {
+            "title": "Max idle seconds (watchdog)",
+            "type": "integer",
+            "description": "If no page is processed for this many seconds, the actor exits gracefully with whatever data it collected. Set to 0 to disable. Combine with an unlimited run timeout in Apify (Run options → Timeout = 0) to never cut off a working run.",
+            "default": 600,
+            "minimum": 0,
+            "maximum": 86400
+        },
         "proxyConfig": {
             "title": "Proxy Configuration",
             "type": "object",
