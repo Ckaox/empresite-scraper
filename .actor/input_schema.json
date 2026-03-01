@@ -1,0 +1,57 @@
+{
+    "title": "Empresite Spain Business Directory Scraper",
+    "description": "Scrapes empresite.eleconomista.es by keyword, rotating through all 52 Spanish provinces to maximize results (up to 1,200 per province × 52 = 62,400 results).",
+    "type": "object",
+    "schemaVersion": 1,
+    "properties": {
+        "keyword": {
+            "title": "Keyword",
+            "type": "string",
+            "description": "Business activity/keyword to search (e.g., INSTALACIONES, RESTAURANTES, CONSTRUCCIONES)",
+            "editor": "textfield",
+            "prefill": "INSTALACIONES"
+        },
+        "maxPagesPerProvince": {
+            "title": "Max Pages per Province",
+            "type": "integer",
+            "description": "Maximum number of pages to scrape per province (max 40, each page has 30 results)",
+            "default": 40,
+            "minimum": 1,
+            "maximum": 40
+        },
+        "provincias": {
+            "title": "Provinces (optional filter)",
+            "type": "array",
+            "description": "List of province codes to scrape. Leave empty for all 52 provinces. Example: [\"MADRID\", \"BARCELONA\", \"VALENCIA\"]",
+            "editor": "json",
+            "items": { "type": "string" }
+        },
+        "maxConcurrency": {
+            "title": "Max Concurrency",
+            "type": "integer",
+            "description": "Maximum number of parallel browser pages. Keep low (2-5) to avoid rate limiting.",
+            "default": 3,
+            "minimum": 1,
+            "maximum": 10
+        },
+        "delayBetweenRequests": {
+            "title": "Delay between requests (ms)",
+            "type": "integer",
+            "description": "Milliseconds to wait between each request. Higher = slower but safer.",
+            "default": 2000,
+            "minimum": 0,
+            "maximum": 30000
+        },
+        "proxyConfig": {
+            "title": "Proxy Configuration",
+            "type": "object",
+            "description": "Apify proxy configuration. Residential proxies recommended.",
+            "editor": "proxy",
+            "prefill": {
+                "useApifyProxy": true,
+                "apifyProxyGroups": ["RESIDENTIAL"]
+            }
+        }
+    },
+    "required": ["keyword"]
+}

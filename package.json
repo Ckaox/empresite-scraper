@@ -1,0 +1,19 @@
+{
+  "name": "empresite-scraper",
+  "version": "1.0.0",
+  "description": "Apify actor to scrape empresite.eleconomista.es - Spanish business directory",
+  "type": "module",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "keywords": ["apify", "scraper", "empresite", "spain", "business-directory"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "apify": "^3.6.0",
+    "crawlee": "^3.16.0",
+    "playwright": "^1.58.2"
+  }
+}

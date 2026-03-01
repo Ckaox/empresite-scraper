@@ -1,0 +1,10 @@
+{
+    "keyword": "INSTALACIONES",
+    "maxPagesPerProvince": 40,
+    "maxConcurrency": 3,
+    "delayBetweenRequests": 2000,
+    "proxyConfig": {
+        "useApifyProxy": true,
+        "apifyProxyGroups": ["RESIDENTIAL"]
+    }
+}

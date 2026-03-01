@@ -1,0 +1,45 @@
+{
+    "actorSpecification": 1,
+    "name": "empresite-scraper",
+    "title": "Empresite Spain Business Scraper",
+    "description": "Scrapes Spanish business directory empresite.eleconomista.es by keyword across all provinces",
+    "version": "1.0.0",
+    "input": "./input_schema.json",
+    "dockerfile": "../Dockerfile",
+    "storages": {
+        "dataset": {
+            "actorSpecification": 1,
+            "title": "Empresite Results",
+            "views": {
+                "companies": {
+                    "title": "Companies",
+                    "transformation": {
+                        "fields": [
+                            "keyword",
+                            "provincia",
+                            "name",
+                            "description",
+                            "address",
+                            "url",
+                            "page",
+                            "scrapedAt"
+                        ]
+                    },
+                    "display": {
+                        "component": "table",
+                        "properties": {
+                            "keyword": { "label": "Keyword", "format": "text" },
+                            "provincia": { "label": "Province", "format": "text" },
+                            "name": { "label": "Company Name", "format": "text" },
+                            "description": { "label": "Description", "format": "text" },
+                            "address": { "label": "Address", "format": "text" },
+                            "url": { "label": "Profile URL", "format": "link" },
+                            "page": { "label": "Page", "format": "number" },
+                            "scrapedAt": { "label": "Scraped At", "format": "text" }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
