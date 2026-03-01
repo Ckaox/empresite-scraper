@@ -155,7 +155,7 @@ router.addHandler('LISTING', async ({ request, page, addRequests }) => {
         return results;
     });
 
-    const { scrapeDetails = false, keyword: cfgKeyword, requireWeb = false, requirePhone = false, requireEmail = false } = config;
+    const { scrapeDetails = false, keyword: cfgKeyword, requireWeb = false, requirePhone = false, requireEmail = false, enableCityFallback = false, minCityResults = 20 } = config;
     const anyFilterActive = requireWeb || requirePhone || requireEmail;
 
     if (scrapeDetails) {
@@ -179,9 +179,6 @@ router.addHandler('LISTING', async ({ request, page, addRequests }) => {
             log.info(`Enqueued ${companies.length} detail pages from ${locationLabel} page ${pageNum}`);
         }
     } else {
-        if (anyFilterActive) {
-            log.warning('requireWeb/Phone/Email only work with scrapeDetails:true — saving all results without filtering');
-        }
         for (const company of companies) {
             await Dataset.pushData({
                 keyword: cfgKeyword || keyword,
@@ -192,9 +189,6 @@ router.addHandler('LISTING', async ({ request, page, addRequests }) => {
                 description: company.description,
                 address: company.address,
                 profileUrl: company.profileUrl,
-                website: null,
-                phone: null,
-                email: null,
                 scrapedAt: new Date().toISOString(),
             });
         }
@@ -205,33 +199,65 @@ router.addHandler('LISTING', async ({ request, page, addRequests }) => {
     ping();
 
     // ── City fallback for provinces with >1200 results ─────────────────────────
-    const { enableCityFallback = false } = config;
     if (enableCityFallback && !cityMode && pageNum === 1 && totalResults > 1200) {
         log.info(`${provincia} has ${totalResults} companies (>1200), looking for city links...`);
 
-        const cityUrls = await page.evaluate((prov) => {
+        // City links are in the location filter panel — try to click the Ubicación chip to expand it
+        let cityUrls = await page.evaluate((minCount) => {
             const links = [];
             const seen = new Set();
-            // Look for municipio links in the page
-            document.querySelectorAll(`a[href*="/provincia/${prov}/municipio/"]`).forEach(a => {
-                if (!seen.has(a.href)) {
-                    seen.add(a.href);
-                    const m = a.href.match(/\/municipio\/([^/?#]+)/);
-                    links.push({ url: a.href.replace(/\/?$/, '/'), cityName: m ? m[1] : a.textContent?.trim() });
+            document.querySelectorAll('a[href*="/localidad/"]').forEach(a => {
+                if (seen.has(a.href)) return;
+                seen.add(a.href);
+                const text = (a.textContent || '').trim();
+                const countMatch = text.match(/(\d[\d.,\s]*)/);
+                const count = countMatch ? parseInt(countMatch[1].replace(/[^\d]/g, ''), 10) : 0;
+                const m = a.href.match(/\/localidad\/([^/?#]+)/);
+                const slug = m ? m[1] : null;
+                if (slug && count >= minCount) {
+                    links.push({ url: a.href.replace(/\/?$/, '/'), cityName: slug, count });
                 }
             });
             return links;
-        }, provincia);
+        }, minCityResults);
+
+        // If no links yet, click the Ubicación chip to open the city filter panel
+        if (cityUrls.length === 0) {
+            const ubicBtn = page.locator(
+                'button:has-text("Ubicación"), a:has-text("Ubicación"), [title="Ubicación"], .filter-location'
+            ).first();
+            const clicked = await ubicBtn.click({ timeout: 5000 }).then(() => true).catch(() => false);
+            if (clicked) {
+                await page.waitForSelector('a[href*="/localidad/"]', { timeout: 5000 }).catch(() => {});
+                cityUrls = await page.evaluate((minCount) => {
+                    const links = [];
+                    const seen = new Set();
+                    document.querySelectorAll('a[href*="/localidad/"]').forEach(a => {
+                        if (seen.has(a.href)) return;
+                        seen.add(a.href);
+                        const text = (a.textContent || '').trim();
+                        const countMatch = text.match(/(\d[\d.,\s]*)/);
+                        const count = countMatch ? parseInt(countMatch[1].replace(/[^\d]/g, ''), 10) : 0;
+                        const m = a.href.match(/\/localidad\/([^/?#]+)/);
+                        const slug = m ? m[1] : null;
+                        if (slug && count >= minCount) {
+                            links.push({ url: a.href.replace(/\/?$/, '/'), cityName: slug, count });
+                        }
+                    });
+                    return links;
+                }, minCityResults);
+            }
+        }
 
         if (cityUrls.length > 0) {
-            log.info(`Found ${cityUrls.length} city URLs for ${provincia}`);
+            log.info(`Found ${cityUrls.length} cities for ${provincia} with >=${minCityResults} results each`);
             await addRequests(cityUrls.map(c => ({
                 url: c.url,
                 label: 'LISTING',
                 userData: { keyword, provincia, page: 1, cityMode: true, cityName: c.cityName },
             })));
         } else {
-            log.warning(`No city links found for ${provincia} — only first 1200 results available`);
+            log.warning(`No city links found for ${provincia} — scraped first 1200 results only`);
         }
     }
 

@@ -23,9 +23,6 @@
                             "description",
                             "address",
                             "profileUrl",
-                            "phone",
-                            "email",
-                            "website",
                             "page",
                             "scrapedAt"
                         ]
@@ -40,9 +37,6 @@
                             "description": { "label": "Description", "format": "text" },
                             "address": { "label": "Address", "format": "text" },
                             "profileUrl": { "label": "Profile URL", "format": "link" },
-                            "phone": { "label": "Phone", "format": "text" },
-                            "email": { "label": "Email", "format": "text" },
-                            "website": { "label": "Website", "format": "link" },
                             "page": { "label": "Page", "format": "number" },
                             "scrapedAt": { "label": "Scraped At", "format": "text" }
                         }

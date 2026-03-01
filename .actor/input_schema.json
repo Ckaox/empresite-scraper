@@ -30,7 +30,7 @@
             "title": "Max Concurrency",
             "type": "integer",
             "description": "Maximum number of parallel browser pages. Keep low (2-5) to avoid rate limiting.",
-            "default": 3,
+            "default": 2,
             "minimum": 1,
             "maximum": 10
         },
@@ -38,7 +38,7 @@
             "title": "Delay between requests (ms)",
             "type": "integer",
             "description": "Milliseconds to wait between each request. Higher = slower but safer.",
-            "default": 2000,
+            "default": 3000,
             "minimum": 0,
             "maximum": 30000
         },
@@ -66,8 +66,16 @@
         "enableCityFallback": {
             "title": "City-level fallback for large provinces",
             "type": "boolean",
-            "description": "When a province has more than 1,200 results, automatically try to split by city to capture more companies.",
+            "description": "When a province has more than 1,200 results, automatically split by city to capture more companies. Uses /localidad/ URLs from the location filter.",
             "default": false
+        },
+        "minCityResults": {
+            "title": "Min results per city (city fallback)",
+            "type": "integer",
+            "description": "Minimum number of results a city must have to be scraped when enableCityFallback is active. Cities with fewer results are skipped.",
+            "default": 20,
+            "minimum": 1,
+            "maximum": 1200
         },
         "requireWeb": {
             "title": "Only save companies with website",

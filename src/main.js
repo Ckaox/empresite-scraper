@@ -12,12 +12,13 @@ const {
     keyword = 'INSTALACIONES',
     maxPagesPerProvince = 40,
     provincias = PROVINCIAS.map(p => p.code),
-    maxConcurrency = 5,
-    delayBetweenRequests = 2000,
+    maxConcurrency = 2,
+    delayBetweenRequests = 3000,
     captchaApiKey = '',
     captchaMaxRetries = 2,
     scrapeDetails = false,
     enableCityFallback = false,
+    minCityResults = 20,
     requireWeb = false,
     requirePhone = false,
     requireEmail = false,
@@ -37,8 +38,6 @@ if (scrapeDetails) {
         const filters = [requireWeb && 'web', requirePhone && 'phone', requireEmail && 'email'].filter(Boolean);
         log.info(`Active filters: ${filters.join(', ')}`);
     }
-} else if (requireWeb || requirePhone || requireEmail) {
-    log.warning('requireWeb/Phone/Email filters are only applied when scrapeDetails=true');
 }
 
 // Store config in key-value store for routes to access
@@ -50,6 +49,7 @@ await kvStore.setValue('CONFIG', {
     captchaMaxRetries,
     scrapeDetails,
     enableCityFallback,
+    minCityResults,
     requireWeb,
     requirePhone,
     requireEmail,
