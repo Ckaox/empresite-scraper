@@ -57,6 +57,36 @@
             "minimum": 0,
             "maximum": 5
         },
+        "scrapeDetails": {
+            "title": "Scrape company detail pages",
+            "type": "boolean",
+            "description": "Visit each company profile page to extract phone, email and website. Much slower (1 extra request per company) but required for contact data and filters.",
+            "default": false
+        },
+        "enableCityFallback": {
+            "title": "City-level fallback for large provinces",
+            "type": "boolean",
+            "description": "When a province has more than 1,200 results, automatically try to split by city to capture more companies.",
+            "default": false
+        },
+        "requireWeb": {
+            "title": "Only save companies with website",
+            "type": "boolean",
+            "description": "Filter: only save companies where a website was found. Requires scrapeDetails=true.",
+            "default": false
+        },
+        "requirePhone": {
+            "title": "Only save companies with phone",
+            "type": "boolean",
+            "description": "Filter: only save companies where a phone number was found. Requires scrapeDetails=true.",
+            "default": false
+        },
+        "requireEmail": {
+            "title": "Only save companies with email",
+            "type": "boolean",
+            "description": "Filter: only save companies where an email was found. Requires scrapeDetails=true.",
+            "default": false
+        },
         "proxyConfig": {
             "title": "Proxy Configuration",
             "type": "object",

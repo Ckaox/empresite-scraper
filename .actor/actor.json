@@ -6,6 +6,7 @@
     "version": "1.0.0",
     "input": "./input_schema.json",
     "dockerfile": "../Dockerfile",
+    "minMemoryMbytes": 2048,
     "storages": {
         "dataset": {
             "actorSpecification": 1,
@@ -17,10 +18,14 @@
                         "fields": [
                             "keyword",
                             "provincia",
+                            "city",
                             "name",
                             "description",
                             "address",
-                            "url",
+                            "profileUrl",
+                            "phone",
+                            "email",
+                            "website",
                             "page",
                             "scrapedAt"
                         ]
@@ -30,10 +35,14 @@
                         "properties": {
                             "keyword": { "label": "Keyword", "format": "text" },
                             "provincia": { "label": "Province", "format": "text" },
+                            "city": { "label": "City", "format": "text" },
                             "name": { "label": "Company Name", "format": "text" },
                             "description": { "label": "Description", "format": "text" },
                             "address": { "label": "Address", "format": "text" },
-                            "url": { "label": "Profile URL", "format": "link" },
+                            "profileUrl": { "label": "Profile URL", "format": "link" },
+                            "phone": { "label": "Phone", "format": "text" },
+                            "email": { "label": "Email", "format": "text" },
+                            "website": { "label": "Website", "format": "link" },
                             "page": { "label": "Page", "format": "number" },
                             "scrapedAt": { "label": "Scraped At", "format": "text" }
                         }

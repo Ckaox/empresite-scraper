@@ -11,10 +11,15 @@ const {
     keyword = 'INSTALACIONES',
     maxPagesPerProvince = 40,
     provincias = PROVINCIAS.map(p => p.code),
-    maxConcurrency = 3,
+    maxConcurrency = 5,
     delayBetweenRequests = 2000,
     captchaApiKey = '',
     captchaMaxRetries = 2,
+    scrapeDetails = false,
+    enableCityFallback = false,
+    requireWeb = false,
+    requirePhone = false,
+    requireEmail = false,
     proxyConfig = { useApifyProxy: true, apifyProxyGroups: ['RESIDENTIAL'] },
 } = input;
 
@@ -24,9 +29,29 @@ if (captchaApiKey) {
     log.warning('No 2Captcha API key — if reCAPTCHA appears, pages will be retried with new proxy but NOT solved');
 }
 
+if (scrapeDetails) {
+    log.info('scrapeDetails=true: will visit each company profile page to extract phone/email/website');
+    if (requireWeb || requirePhone || requireEmail) {
+        const filters = [requireWeb && 'web', requirePhone && 'phone', requireEmail && 'email'].filter(Boolean);
+        log.info(`Active filters: ${filters.join(', ')}`);
+    }
+} else if (requireWeb || requirePhone || requireEmail) {
+    log.warning('requireWeb/Phone/Email filters are only applied when scrapeDetails=true');
+}
+
 // Store config in key-value store for routes to access
 const kvStore = await Actor.openKeyValueStore();
-await kvStore.setValue('CONFIG', { keyword, maxPagesPerProvince, captchaApiKey, captchaMaxRetries });
+await kvStore.setValue('CONFIG', {
+    keyword,
+    maxPagesPerProvince,
+    captchaApiKey,
+    captchaMaxRetries,
+    scrapeDetails,
+    enableCityFallback,
+    requireWeb,
+    requirePhone,
+    requireEmail,
+});
 
 // Setup proxy
 const proxyConfiguration = await Actor.createProxyConfiguration(proxyConfig);
