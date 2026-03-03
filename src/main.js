@@ -32,12 +32,17 @@ if (captchaApiKey) {
     log.warning('No 2Captcha API key — if reCAPTCHA appears, pages will be retried with new proxy but NOT solved');
 }
 
-if (scrapeDetails) {
-    log.info('scrapeDetails=true: will visit each company profile page to extract phone/email/website');
-    if (requireWeb || requirePhone || requireEmail) {
-        const filters = [requireWeb && 'web', requirePhone && 'phone', requireEmail && 'email'].filter(Boolean);
-        log.info(`Active filters: ${filters.join(', ')}`);
+const filtersActive = requireWeb || requirePhone || requireEmail;
+if (filtersActive) {
+    const filters = [requireWeb && 'Web', requirePhone && 'Teléfono', requireEmail && 'Email'].filter(Boolean);
+    log.info(`Native empresite filters active: ${filters.join(', ')}`);
+    log.info('In-session pagination mode: each province will paginate via clicks (not URL navigation) to preserve filter state');
+    log.info(`Concurrency capped at 1 for filter mode to avoid conflicts`);
+    if (scrapeDetails) {
+        log.info('scrapeDetails=true: will also visit each company profile page for phone/email/website');
     }
+} else if (scrapeDetails) {
+    log.info('scrapeDetails=true: will visit each company profile page to extract phone/email/website');
 }
 
 // Store config in key-value store for routes to access
@@ -58,11 +63,29 @@ await kvStore.setValue('CONFIG', {
 // Setup proxy
 const proxyConfiguration = await Actor.createProxyConfiguration(proxyConfig);
 
+// In filter mode, each LISTING request handles ALL pages in-session (up to 40),
+// so we need a much longer timeout. Also cap concurrency to 1 to avoid conflicts
+// with the KV-store progress tracking.
+const effectiveConcurrency = filtersActive ? 1 : maxConcurrency;
+const effectiveHandlerTimeout = filtersActive
+    ? Math.max(300, maxPagesPerProvince * 15)  // ~15s per page × pages
+    : 120;
+
+// Rotate user-agents to reduce fingerprinting
+const USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0',
+];
+
 const crawler = new PlaywrightCrawler({
     proxyConfiguration,
-    maxConcurrency,
+    maxConcurrency: effectiveConcurrency,
     navigationTimeoutSecs: 60,
-    requestHandlerTimeoutSecs: 120,
+    requestHandlerTimeoutSecs: effectiveHandlerTimeout,
     maxRequestRetries: 5,
 
     // Anti-detection
@@ -75,12 +98,17 @@ const crawler = new PlaywrightCrawler({
         },
     },
 
-    // Delay between requests to avoid rate limiting
+    // Delay between requests + random user-agent
     preNavigationHooks: [
         async (crawlingContext) => {
             if (delayBetweenRequests > 0) {
-                await new Promise(r => setTimeout(r, delayBetweenRequests));
+                // Add ±30% jitter to seem more human
+                const jitter = delayBetweenRequests * (0.7 + Math.random() * 0.6);
+                await new Promise(r => setTimeout(r, jitter));
             }
+            // Rotate user-agent per request
+            const ua = USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+            await crawlingContext.page?.setExtraHTTPHeaders({ 'User-Agent': ua }).catch(() => {});
         },
     ],
 
@@ -89,8 +117,7 @@ const crawler = new PlaywrightCrawler({
         async (crawlingContext) => {
             const { page } = crawlingContext;
             try {
-                // Try to dismiss cookie banner
-                const cookieBtn = page.locator('button:has-text("Agree"), button:has-text("Disagree and close"), #didomi-notice-agree-button');
+                const cookieBtn = page.locator('button:has-text("Agree"), button:has-text("Disagree and close"), #didomi-notice-agree-button, button:has-text("Aceptar")');
                 await cookieBtn.first().click({ timeout: 3000 }).catch(() => {});
             } catch {
                 // Cookie banner not present, continue
@@ -100,7 +127,6 @@ const crawler = new PlaywrightCrawler({
 
     requestHandler: router,
 
-    // On failure, log but continue
     failedRequestHandler({ request }, error) {
         log.warning(`Request ${request.url} failed: ${error.message}`);
     },
@@ -143,6 +169,20 @@ if (watchdog) clearInterval(watchdog);
 // Log summary
 const dataset = await Actor.openDataset();
 const info = await dataset.getInfo();
-log.info(`Scrape complete. Total results: ${info?.itemCount ?? 0}`);
+const totalItems = info?.itemCount ?? 0;
+
+log.info('═══════════════════════════════════════════════════════════════');
+log.info(`  Scrape complete!`);
+log.info(`  Keyword:     ${keyword}`);
+log.info(`  Provinces:   ${startUrls.length}`);
+log.info(`  Total items: ${totalItems}`);
+if (filtersActive) {
+    const filters = [requireWeb && 'Web', requirePhone && 'Teléfono', requireEmail && 'Email'].filter(Boolean);
+    log.info(`  Filters:     ${filters.join(', ')}`);
+}
+if (scrapeDetails) {
+    log.info(`  Mode:        Detail scraping (visited each profile page)`);
+}
+log.info('═══════════════════════════════════════════════════════════════');
 
 await Actor.exit();
