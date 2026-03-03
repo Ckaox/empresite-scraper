@@ -264,7 +264,7 @@ router.addHandler('LISTING', async ({ request, page, addRequests }) => {
     const locationLabel = cityMode ? `${provincia}/${cityName}` : provincia;
 
     const config = await getConfig();
-    const { scrapeDetails = false, keyword: cfgKeyword, requireWeb = false, requirePhone = false, requireEmail = false, enableCityFallback = false, minCityResults = 20 } = config;
+    const { keyword: cfgKeyword, requireWeb = false, requirePhone = false, requireEmail = false, enableCityFallback = false, minCityResults = 20 } = config;
     const filtersActive = requireWeb || requirePhone || requireEmail;
     const maxPages = config.maxPagesPerProvince || 40;
 
@@ -328,41 +328,20 @@ router.addHandler('LISTING', async ({ request, page, addRequests }) => {
                 ? companies.filter(c => !savedUrlSet.has(c.profileUrl))
                 : companies;
 
-            if (scrapeDetails) {
-                if (newCompanies.length > 0) {
-                    await addRequests(newCompanies.map(c => ({
-                        url: c.profileUrl,
-                        label: 'DETAIL',
-                        userData: {
-                            keyword: effectiveKeyword,
-                            provincia,
-                            page: currentPageNum,
-                            cityMode,
-                            cityName,
-                            name: c.name,
-                            description: c.description,
-                            address: c.address,
-                            profileUrl: c.profileUrl,
-                        },
-                    })));
-                    log.info(`Enqueued ${newCompanies.length} detail pages from ${locationLabel} page ${currentPageNum}`);
-                }
-            } else {
-                for (const company of newCompanies) {
-                    await Dataset.pushData({
-                        keyword: effectiveKeyword,
-                        provincia,
-                        city: cityName || null,
-                        page: currentPageNum,
-                        name: company.name,
-                        description: company.description,
-                        address: company.address,
-                        profileUrl: company.profileUrl,
-                        scrapedAt: new Date().toISOString(),
-                    });
-                }
-                log.info(`Saved ${newCompanies.length} companies from ${locationLabel} page ${currentPageNum} (${totalResults} total)`);
+            for (const company of newCompanies) {
+                await Dataset.pushData({
+                    keyword: effectiveKeyword,
+                    provincia,
+                    city: cityName || null,
+                    page: currentPageNum,
+                    name: company.name,
+                    description: company.description,
+                    address: company.address,
+                    profileUrl: company.profileUrl,
+                    scrapedAt: new Date().toISOString(),
+                });
             }
+            log.info(`Saved ${newCompanies.length} companies from ${locationLabel} page ${currentPageNum} (${totalResults} total)`);
 
             // Track saved URLs and update progress
             if (filtersActive) {
@@ -487,107 +466,4 @@ router.addHandler('LISTING', async ({ request, page, addRequests }) => {
             break; // URL-based: one page per handler invocation
         }
     }
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DETAIL handler — individual company profile page
-// ─────────────────────────────────────────────────────────────────────────────
-
-router.addHandler('DETAIL', async ({ request, page }) => {
-    const { keyword, provincia, page: pageNum, cityMode, cityName, name, description, address, profileUrl } = request.userData;
-
-    await page.waitForSelector('h1, h2', { timeout: 15000 }).catch(() => {});
-
-    const config = await getConfig();
-    await handleCaptcha(page, request, config);
-
-    // Try to reveal hidden contact data (empresite hides phone/email behind a click)
-    const revealSelectors = [
-        'button[data-action="reveal"]',
-        'button:has-text("Ver teléfono")',
-        'button:has-text("Ver email")',
-        'button:has-text("Mostrar")',
-        'a:has-text("Ver email")',
-        'a:has-text("Ver teléfono")',
-        '[class*="reveal"]',
-        '[class*="show-contact"]',
-        '[class*="contact-reveal"]',
-        '[data-target*="email"]',
-        '[data-track*="email"]',
-    ];
-    for (const sel of revealSelectors) {
-        try {
-            const btn = page.locator(sel).first();
-            const visible = await btn.isVisible({ timeout: 1000 }).catch(() => false);
-            if (visible) {
-                await btn.click({ timeout: 3000 });
-                await page.waitForTimeout(1500);
-                log.debug(`Clicked reveal button: ${sel}`);
-            }
-        } catch { /* not found, continue */ }
-    }
-
-    const contacts = await page.evaluate(() => {
-        let phone = null, email = null, website = null;
-
-        // Phone
-        const telLink = document.querySelector('a[href^="tel:"]');
-        if (telLink) {
-            phone = telLink.href.replace('tel:', '').trim() || telLink.textContent?.trim() || null;
-        } else {
-            const m = document.body.textContent?.match(/(?:\+34\s?)?[6789]\d{8}/);
-            if (m) phone = m[0].replace(/\s/g, '');
-        }
-
-        // Email — try mailto: link first, then regex scan on visible text
-        const mailLink = document.querySelector('a[href^="mailto:"]');
-        if (mailLink) {
-            email = mailLink.href.replace('mailto:', '').split('?')[0].trim() || null;
-        }
-        if (!email) {
-            // Scan all text nodes for an email pattern (handles obfuscated/revealed emails)
-            const emailMatch = document.body.innerText?.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
-            if (emailMatch) email = emailMatch[0];
-        }
-        if (!email) {
-            // Also check data attributes (some sites store email in data-email)
-            const dataEmail = document.querySelector('[data-email]')?.getAttribute('data-email');
-            if (dataEmail && dataEmail.includes('@')) email = dataEmail;
-        }
-
-        // Website
-        const excluded = ['empresite', 'eleconomista', 'einforma', 'google', 'facebook', 'twitter', 'linkedin', 'youtube', 'instagram'];
-        const extLink = [...document.querySelectorAll('a[href^="http"]')].find(a => {
-            const h = a.href || '';
-            return !excluded.some(x => h.includes(x)) && h.length > 10;
-        });
-        if (extLink) website = extLink.href;
-
-        return { phone, email, website };
-    });
-
-    log.debug(`DETAIL [${name}] — phone: ${contacts.phone || 'none'}, email: ${contacts.email || 'none'}, web: ${contacts.website || 'none'}`);
-
-    const { requireWeb = false, requirePhone = false, requireEmail = false, keyword: cfgKeyword } = config;
-    if (requireWeb && !contacts.website) return;
-    if (requirePhone && !contacts.phone) return;
-    if (requireEmail && !contacts.email) return;
-
-    await Dataset.pushData({
-        keyword: cfgKeyword || keyword,
-        provincia,
-        city: cityName || null,
-        page: pageNum,
-        name,
-        description,
-        address,
-        profileUrl,
-        website: contacts.website,
-        phone: contacts.phone,
-        email: contacts.email,
-        scrapedAt: new Date().toISOString(),
-    });
-
-    // Signal activity for the watchdog
-    ping();
 });

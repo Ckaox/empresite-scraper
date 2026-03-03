@@ -16,7 +16,6 @@ const {
     delayBetweenRequests = 3000,
     captchaApiKey = '',
     captchaMaxRetries = 2,
-    scrapeDetails = false,
     enableCityFallback = false,
     minCityResults = 20,
     requireWeb = false,
@@ -38,11 +37,6 @@ if (filtersActive) {
     log.info(`Native empresite filters active: ${filters.join(', ')}`);
     log.info('In-session pagination mode: each province will paginate via clicks (not URL navigation) to preserve filter state');
     log.info(`Concurrency capped at 1 for filter mode to avoid conflicts`);
-    if (scrapeDetails) {
-        log.info('scrapeDetails=true: will also visit each company profile page for phone/email/website');
-    }
-} else if (scrapeDetails) {
-    log.info('scrapeDetails=true: will visit each company profile page to extract phone/email/website');
 }
 
 // Store config in key-value store for routes to access
@@ -52,7 +46,6 @@ await kvStore.setValue('CONFIG', {
     maxPagesPerProvince,
     captchaApiKey,
     captchaMaxRetries,
-    scrapeDetails,
     enableCityFallback,
     minCityResults,
     requireWeb,
@@ -179,9 +172,6 @@ log.info(`  Total items: ${totalItems}`);
 if (filtersActive) {
     const filters = [requireWeb && 'Web', requirePhone && 'Teléfono', requireEmail && 'Email'].filter(Boolean);
     log.info(`  Filters:     ${filters.join(', ')}`);
-}
-if (scrapeDetails) {
-    log.info(`  Mode:        Detail scraping (visited each profile page)`);
 }
 log.info('═══════════════════════════════════════════════════════════════');
 
