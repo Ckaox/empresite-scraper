@@ -17,7 +17,7 @@ Empresite limita **cualquier búsqueda a 40 páginas** (1,200 resultados). Si bu
 
 | Campo | Tipo | Default | Descripción |
 |-------|------|---------|-------------|
-| `keyword` | string | INSTALACIONES | Actividad/keyword a buscar |
+| `keyword` | string | (vacío) | Actividad/keyword a buscar. Si está vacío, scrapea todas las actividades en las provincias seleccionadas |
 | `maxPagesPerProvince` | int | 40 | Páginas máximo por provincia (1-40) |
 | `provincias` | string[] | todas | Filtrar provincias específicas |
 | `maxConcurrency` | int | 3 | Browsers paralelos (2-5 recomendado) |
@@ -45,6 +45,19 @@ Empresite limita **cualquier búsqueda a 40 páginas** (1,200 resultados). Si bu
     }
 }
 ```
+
+### Sin keyword (toda la provincia)
+
+```json
+{
+    "provincias": ["MADRID"],
+    "maxPagesPerProvince": 40,
+    "maxConcurrency": 2,
+    "delayBetweenRequests": 3000
+}
+```
+
+> Si dejas `keyword` vacío, debes indicar al menos una provincia en `provincias`.
 
 > Si definís `minEmployees` y/o `maxEmployees`, el actor intenta activar automáticamente
 > los checkboxes de rango de empleados en el sidebar nativo de empresite.

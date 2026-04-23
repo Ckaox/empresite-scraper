@@ -7,9 +7,9 @@
         "keyword": {
             "title": "Keyword",
             "type": "string",
-            "description": "Business activity/keyword to search (e.g., INSTALACIONES, RESTAURANTES, CONSTRUCCIONES)",
+            "description": "Optional business activity/keyword (e.g., INSTALACIONES, RESTAURANTES). Leave empty to scrape all activities in the selected provinces.",
             "editor": "textfield",
-            "prefill": "INSTALACIONES"
+            "prefill": ""
         },
         "maxPagesPerProvince": {
             "title": "Max Pages per Province",
@@ -122,5 +122,5 @@
             }
         }
     },
-    "required": ["keyword"]
+    "required": []
 }

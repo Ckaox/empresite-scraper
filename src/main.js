@@ -9,7 +9,7 @@ await Actor.init();
 const input = await Actor.getInput() ?? {};
 
 const {
-    keyword = 'INSTALACIONES',
+    keyword = '',
     maxPagesPerProvince = 40,
     provincias = PROVINCIAS.map(p => p.code),
     maxConcurrency = 2,
@@ -26,6 +26,14 @@ const {
     maxIdleSecs = 600,
     proxyConfig = { useApifyProxy: true, apifyProxyGroups: ['RESIDENTIAL'] },
 } = input;
+
+const normalizedKeyword = (keyword || '').toString().trim();
+const keywordUrl = normalizedKeyword.toUpperCase().replace(/\s+/g, '-');
+const isKeywordMode = keywordUrl.length > 0;
+
+if (!isKeywordMode && (!Array.isArray(provincias) || provincias.length === 0)) {
+    throw new Error('If keyword is empty, you must provide at least one province in "provincias".');
+}
 
 const parsedMinEmployees = Number.isFinite(minEmployees) ? Math.max(0, Math.trunc(minEmployees)) : null;
 const parsedMaxEmployees = Number.isFinite(maxEmployees) ? Math.max(0, Math.trunc(maxEmployees)) : null;
@@ -61,7 +69,8 @@ if (filtersActive) {
 // Store config in key-value store for routes to access
 const kvStore = await Actor.openKeyValueStore();
 await kvStore.setValue('CONFIG', {
-    keyword,
+    keyword: isKeywordMode ? keywordUrl : null,
+    keywordMode: isKeywordMode,
     maxPagesPerProvince,
     captchaApiKey,
     captchaMaxRetries,
@@ -147,18 +156,24 @@ const crawler = new PlaywrightCrawler({
 });
 
 // Build starting URLs: one per province
-const keywordUrl = keyword.toUpperCase().replace(/\s+/g, '-');
 const startUrls = provincias.map(provinciaCode => ({
-    url: `https://empresite.eleconomista.es/Actividad/${keywordUrl}/provincia/${provinciaCode}/`,
+    url: isKeywordMode
+        ? `https://empresite.eleconomista.es/Actividad/${keywordUrl}/provincia/${provinciaCode}/`
+        : `https://empresite.eleconomista.es/provincia/${provinciaCode}/`,
     label: 'LISTING',
     userData: {
-        keyword: keywordUrl,
+        keyword: isKeywordMode ? keywordUrl : null,
+        keywordMode: isKeywordMode,
         provincia: provinciaCode,
         page: 1,
     },
 }));
 
-log.info(`Starting scrape for "${keyword}" across ${startUrls.length} provinces`);
+log.info(
+    isKeywordMode
+        ? `Starting keyword scrape for "${normalizedKeyword}" across ${startUrls.length} provinces`
+        : `Starting province-wide scrape (all activities) across ${startUrls.length} provinces`
+);
 log.info(`Idle watchdog: will exit gracefully if no activity for ${maxIdleSecs}s (set maxIdleSecs=0 to disable)`);
 
 // ── Watchdog: exit gracefully if stuck / no results for maxIdleSecs ──────────
@@ -187,7 +202,7 @@ const totalItems = info?.itemCount ?? 0;
 
 log.info('═══════════════════════════════════════════════════════════════');
 log.info(`  Scrape complete!`);
-log.info(`  Keyword:     ${keyword}`);
+log.info(`  Keyword:     ${isKeywordMode ? normalizedKeyword : 'ALL (no keyword filter)'}`);
 log.info(`  Provinces:   ${startUrls.length}`);
 log.info(`  Total items: ${totalItems}`);
 if (filtersActive) {

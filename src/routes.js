@@ -385,7 +385,7 @@ async function extractCompanies(page) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.addHandler('LISTING', async ({ request, page, addRequests }) => {
-    const { keyword, provincia, page: pageNum, cityMode = false, cityName = null } = request.userData;
+    const { keyword, keywordMode = true, provincia, page: pageNum, cityMode = false, cityName = null } = request.userData;
     const locationLabel = cityMode ? `${provincia}/${cityName}` : provincia;
 
     const config = await getConfig();
@@ -425,8 +425,9 @@ router.addHandler('LISTING', async ({ request, page, addRequests }) => {
 
     // ── Load progress (for in-session mode: resume after CAPTCHA/proxy rotation) ──
     const effectiveKeyword = cfgKeyword || keyword;
+    const progressKeyword = effectiveKeyword || 'ALL';
     const progressKey = cityMode ? `${provincia}_${cityName}` : provincia;
-    let progress = filtersActive ? await getProgress(progressKey, effectiveKeyword) : { lastCompletedPage: 0, savedUrls: [] };
+    let progress = filtersActive ? await getProgress(progressKey, progressKeyword) : { lastCompletedPage: 0, savedUrls: [] };
     const savedUrlSet = new Set(progress.savedUrls || []);
 
     if (filtersActive && progress.lastCompletedPage > 0) {
@@ -465,7 +466,8 @@ router.addHandler('LISTING', async ({ request, page, addRequests }) => {
 
             for (const company of newCompanies) {
                 await Dataset.pushData({
-                    keyword: effectiveKeyword,
+                    keyword: effectiveKeyword || null,
+                    keywordMode,
                     provincia,
                     city: cityName || null,
                     page: currentPageNum,
@@ -483,7 +485,7 @@ router.addHandler('LISTING', async ({ request, page, addRequests }) => {
                 for (const c of newCompanies) savedUrlSet.add(c.profileUrl);
                 progress.lastCompletedPage = currentPageNum;
                 progress.savedUrls = [...savedUrlSet];
-                await saveProgress(progressKey, effectiveKeyword, currentPageNum, progress.savedUrls);
+                await saveProgress(progressKey, progressKeyword, currentPageNum, progress.savedUrls);
             }
         }
 
@@ -543,7 +545,7 @@ router.addHandler('LISTING', async ({ request, page, addRequests }) => {
                 await addRequests(cityUrls.map(c => ({
                     url: c.url,
                     label: 'LISTING',
-                    userData: { keyword, provincia, page: 1, cityMode: true, cityName: c.cityName },
+                    userData: { keyword, keywordMode, provincia, page: 1, cityMode: true, cityName: c.cityName },
                 })));
             } else {
                 log.warning(`No city links found for ${provincia} — scraped first 1200 results only`);
@@ -592,7 +594,7 @@ router.addHandler('LISTING', async ({ request, page, addRequests }) => {
                 await addRequests([{
                     url: nextPageUrl,
                     label: 'LISTING',
-                    userData: { keyword, provincia, page: nextPageNum, cityMode, cityName },
+                    userData: { keyword, keywordMode, provincia, page: nextPageNum, cityMode, cityName },
                 }]);
                 log.info(`Enqueued ${locationLabel} page ${nextPageNum}`);
             } else {
