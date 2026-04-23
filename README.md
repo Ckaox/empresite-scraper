@@ -24,6 +24,8 @@ Empresite limita **cualquier búsqueda a 40 páginas** (1,200 resultados). Si bu
 | `delayBetweenRequests` | int | 2000 | Delay en ms entre requests |
 | `captchaApiKey` | string | - | API key de [2captcha.com](https://2captcha.com) para resolver reCAPTCHA |
 | `captchaMaxRetries` | int | 2 | Reintentos máximo cuando aparece CAPTCHA |
+| `minEmployees` | int | - | Filtro nativo de empresite: empleados mínimos |
+| `maxEmployees` | int | - | Filtro nativo de empresite: empleados máximos |
 | `proxyConfig` | object | Residential | Configuración de proxy |
 
 ### Ejemplo de input
@@ -34,6 +36,8 @@ Empresite limita **cualquier búsqueda a 40 páginas** (1,200 resultados). Si bu
     "maxPagesPerProvince": 40,
     "maxConcurrency": 3,
     "delayBetweenRequests": 2000,
+    "minEmployees": 10,
+    "maxEmployees": 250,
     "captchaApiKey": "TU_API_KEY_DE_2CAPTCHA",
     "proxyConfig": {
         "useApifyProxy": true,
@@ -41,6 +45,9 @@ Empresite limita **cualquier búsqueda a 40 páginas** (1,200 resultados). Si bu
     }
 }
 ```
+
+> Si definís `minEmployees` y/o `maxEmployees`, el actor intenta activar automáticamente
+> los checkboxes de rango de empleados en el sidebar nativo de empresite.
 
 ### Solo algunas provincias
 

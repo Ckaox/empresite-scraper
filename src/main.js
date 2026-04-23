@@ -21,9 +21,22 @@ const {
     requireWeb = false,
     requirePhone = false,
     requireEmail = false,
+    minEmployees = null,
+    maxEmployees = null,
     maxIdleSecs = 600,
     proxyConfig = { useApifyProxy: true, apifyProxyGroups: ['RESIDENTIAL'] },
 } = input;
+
+const parsedMinEmployees = Number.isFinite(minEmployees) ? Math.max(0, Math.trunc(minEmployees)) : null;
+const parsedMaxEmployees = Number.isFinite(maxEmployees) ? Math.max(0, Math.trunc(maxEmployees)) : null;
+
+let effectiveMinEmployees = parsedMinEmployees;
+let effectiveMaxEmployees = parsedMaxEmployees;
+
+if (effectiveMinEmployees !== null && effectiveMaxEmployees !== null && effectiveMinEmployees > effectiveMaxEmployees) {
+    log.warning(`minEmployees (${effectiveMinEmployees}) is greater than maxEmployees (${effectiveMaxEmployees}), swapping values.`);
+    [effectiveMinEmployees, effectiveMaxEmployees] = [effectiveMaxEmployees, effectiveMinEmployees];
+}
 
 if (captchaApiKey) {
     log.info('2Captcha API key configured — reCAPTCHA solving enabled');
@@ -31,9 +44,15 @@ if (captchaApiKey) {
     log.warning('No 2Captcha API key — if reCAPTCHA appears, pages will be retried with new proxy but NOT solved');
 }
 
-const filtersActive = requireWeb || requirePhone || requireEmail;
+const hasEmployeeFilter = effectiveMinEmployees !== null || effectiveMaxEmployees !== null;
+const filtersActive = requireWeb || requirePhone || requireEmail || hasEmployeeFilter;
 if (filtersActive) {
     const filters = [requireWeb && 'Web', requirePhone && 'Teléfono', requireEmail && 'Email'].filter(Boolean);
+    if (hasEmployeeFilter) {
+        const minLabel = effectiveMinEmployees !== null ? `${effectiveMinEmployees}` : '0';
+        const maxLabel = effectiveMaxEmployees !== null ? `${effectiveMaxEmployees}` : '∞';
+        filters.push(`Empleados ${minLabel}-${maxLabel}`);
+    }
     log.info(`Native empresite filters active: ${filters.join(', ')}`);
     log.info('In-session pagination mode: each province will paginate via clicks (not URL navigation) to preserve filter state');
     log.info(`Concurrency capped at 1 for filter mode to avoid conflicts`);
@@ -51,6 +70,8 @@ await kvStore.setValue('CONFIG', {
     requireWeb,
     requirePhone,
     requireEmail,
+    minEmployees: effectiveMinEmployees,
+    maxEmployees: effectiveMaxEmployees,
 });
 
 // Setup proxy
@@ -171,6 +192,11 @@ log.info(`  Provinces:   ${startUrls.length}`);
 log.info(`  Total items: ${totalItems}`);
 if (filtersActive) {
     const filters = [requireWeb && 'Web', requirePhone && 'Teléfono', requireEmail && 'Email'].filter(Boolean);
+    if (hasEmployeeFilter) {
+        const minLabel = effectiveMinEmployees !== null ? `${effectiveMinEmployees}` : '0';
+        const maxLabel = effectiveMaxEmployees !== null ? `${effectiveMaxEmployees}` : '∞';
+        filters.push(`Empleados ${minLabel}-${maxLabel}`);
+    }
     log.info(`  Filters:     ${filters.join(', ')}`);
 }
 log.info('═══════════════════════════════════════════════════════════════');

@@ -89,6 +89,20 @@
             "description": "Filter: use empresite's native Email filter to only show companies that have an email listed.",
             "default": false
         },
+        "minEmployees": {
+            "title": "Minimum employees (native filter)",
+            "type": "integer",
+            "description": "Apply empresite sidebar employee-range filters and keep only ranges that overlap this minimum. Leave empty to disable.",
+            "minimum": 0,
+            "maximum": 10000000
+        },
+        "maxEmployees": {
+            "title": "Maximum employees (native filter)",
+            "type": "integer",
+            "description": "Apply empresite sidebar employee-range filters and keep only ranges that overlap this maximum. Leave empty to disable.",
+            "minimum": 0,
+            "maximum": 10000000
+        },
         "maxIdleSecs": {
             "title": "Max idle seconds (watchdog)",
             "type": "integer",

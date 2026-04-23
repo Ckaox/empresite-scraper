@@ -38,8 +38,15 @@ async function saveProgress(provincia, keyword, lastCompletedPage, savedUrls) {
  * that data are returned — no need to visit each profile page for this.
  */
 async function applyNativeFilters(page, config) {
-    const { requireWeb = false, requirePhone = false, requireEmail = false } = config;
-    if (!requireWeb && !requirePhone && !requireEmail) return;
+    const {
+        requireWeb = false,
+        requirePhone = false,
+        requireEmail = false,
+        minEmployees = null,
+        maxEmployees = null,
+    } = config;
+    const hasEmployeeFilter = Number.isFinite(minEmployees) || Number.isFinite(maxEmployees);
+    if (!requireWeb && !requirePhone && !requireEmail && !hasEmployeeFilter) return;
 
     const filtersToApply = [
         requireWeb     && 'Web',
@@ -112,7 +119,125 @@ async function applyNativeFilters(page, config) {
         }
     }
 
-    if (filtersToApply.length > 0) {
+    if (hasEmployeeFilter) {
+        const employeeFilterOutcome = await page.evaluate(({ minEmployees, maxEmployees }) => {
+            const toNum = (txt) => {
+                const n = parseInt((txt || '').toString().replace(/[.\s]/g, '').replace(/[^\d]/g, ''), 10);
+                return Number.isFinite(n) ? n : null;
+            };
+
+            const parseRange = (text) => {
+                const normalized = (text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+                if (!normalized.includes('emplead')) return null;
+
+                let m = normalized.match(/entre\s+(\d[\d.]*)\s+y\s+(\d[\d.]*)/i)
+                    || normalized.match(/de\s+(\d[\d.]*)\s+a\s+(\d[\d.]*)/i)
+                    || normalized.match(/(\d[\d.]*)\s*[-–]\s*(\d[\d.]*)/i);
+                if (m) {
+                    const a = toNum(m[1]);
+                    const b = toNum(m[2]);
+                    if (a !== null && b !== null) return { min: Math.min(a, b), max: Math.max(a, b) };
+                }
+
+                m = normalized.match(/m[aá]s de\s+(\d[\d.]*)/i);
+                if (m) {
+                    const n = toNum(m[1]);
+                    if (n !== null) return { min: n + 1, max: Infinity };
+                }
+
+                m = normalized.match(/(\d[\d.]*)\s*o\s*m[aá]s/i);
+                if (m) {
+                    const n = toNum(m[1]);
+                    if (n !== null) return { min: n, max: Infinity };
+                }
+
+                m = normalized.match(/menos de\s+(\d[\d.]*)/i)
+                    || normalized.match(/hasta\s+(\d[\d.]*)/i);
+                if (m) {
+                    const n = toNum(m[1]);
+                    if (n !== null) return { min: 0, max: n };
+                }
+
+                m = normalized.match(/(\d[\d.]*)\s+empleados?/i);
+                if (m) {
+                    const n = toNum(m[1]);
+                    if (n !== null) return { min: n, max: n };
+                }
+
+                return null;
+            };
+
+            const getCheckboxForLabel = (label) => {
+                const forId = label.getAttribute('for');
+                if (forId) {
+                    const byId = document.getElementById(forId);
+                    if (byId && byId.matches('input[type="checkbox"]')) return byId;
+                }
+                return label.querySelector('input[type="checkbox"]')
+                    || label.previousElementSibling
+                    || label.closest('li, div')?.querySelector('input[type="checkbox"]')
+                    || null;
+            };
+
+            const reqMin = Number.isFinite(minEmployees) ? minEmployees : 0;
+            const reqMax = Number.isFinite(maxEmployees) ? maxEmployees : Infinity;
+            const seen = new Set();
+            const candidates = [];
+
+            const labels = Array.from(document.querySelectorAll('label'));
+            for (const label of labels) {
+                const text = (label.textContent || '').replace(/\s+/g, ' ').trim();
+                const range = parseRange(text);
+                if (!range) continue;
+
+                const checkbox = getCheckboxForLabel(label);
+                if (!checkbox || checkbox.disabled) continue;
+                if (seen.has(checkbox)) continue;
+                seen.add(checkbox);
+                candidates.push({ text, range, checkbox, trigger: label });
+            }
+
+            const clickedTexts = [];
+            const matchedTexts = [];
+
+            for (const candidate of candidates) {
+                const overlaps = candidate.range.min <= reqMax && candidate.range.max >= reqMin;
+                if (!overlaps) continue;
+
+                matchedTexts.push(candidate.text);
+
+                if (!candidate.checkbox.checked) {
+                    try {
+                        candidate.trigger.click();
+                    } catch {
+                        candidate.checkbox.click();
+                    }
+                    clickedTexts.push(candidate.text);
+                }
+            }
+
+            return {
+                foundCandidates: candidates.length,
+                matchedTexts: [...new Set(matchedTexts)],
+                clickedTexts: [...new Set(clickedTexts)],
+            };
+        }, { minEmployees, maxEmployees });
+
+        const minLabel = Number.isFinite(minEmployees) ? minEmployees : 0;
+        const maxLabel = Number.isFinite(maxEmployees) ? maxEmployees : '∞';
+
+        if (employeeFilterOutcome.foundCandidates === 0) {
+            log.warning(`Could not find native employee range checkboxes for ${minLabel}-${maxLabel}`);
+        } else if (employeeFilterOutcome.matchedTexts.length === 0) {
+            log.warning(`No employee ranges matched requested filter ${minLabel}-${maxLabel}`);
+        } else if (employeeFilterOutcome.clickedTexts.length > 0) {
+            log.info(`Applied employee filters (${minLabel}-${maxLabel}): ${employeeFilterOutcome.clickedTexts.join(', ')}`);
+        } else {
+            log.info(`Employee filter already active (${minLabel}-${maxLabel}): ${employeeFilterOutcome.matchedTexts.join(', ')}`);
+        }
+    }
+
+    if (filtersToApply.length > 0 || hasEmployeeFilter) {
         // Wait for the results list to reload after clicking filters
         await page.waitForTimeout(2000);
         await page.waitForSelector('h3 a, .g-recaptcha, [data-sitekey]', { timeout: 15000 }).catch(() => {});
@@ -264,8 +389,18 @@ router.addHandler('LISTING', async ({ request, page, addRequests }) => {
     const locationLabel = cityMode ? `${provincia}/${cityName}` : provincia;
 
     const config = await getConfig();
-    const { keyword: cfgKeyword, requireWeb = false, requirePhone = false, requireEmail = false, enableCityFallback = false, minCityResults = 20 } = config;
-    const filtersActive = requireWeb || requirePhone || requireEmail;
+    const {
+        keyword: cfgKeyword,
+        requireWeb = false,
+        requirePhone = false,
+        requireEmail = false,
+        enableCityFallback = false,
+        minCityResults = 20,
+        minEmployees = null,
+        maxEmployees = null,
+    } = config;
+    const filtersActive = requireWeb || requirePhone || requireEmail
+        || Number.isFinite(minEmployees) || Number.isFinite(maxEmployees);
     const maxPages = config.maxPagesPerProvince || 40;
 
     // ── When filters are active, ALL pagination is done in-session (single request).
